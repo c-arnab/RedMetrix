@@ -1,0 +1,361 @@
+﻿@page
+@model IndexModel
+@{Layout = null;
+}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="60" />
+    <meta name="description" content="RedMetrix - RedisTimeSeries ECOM Web analytics Dashboard">
+    <title>RedMetrix - A RedisTimeSeries Project</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/gridstack.css" />
+    
+    <style>
+    body {
+    background: #222222;
+    color: #465665;
+      }
+    .grid-stack-item {
+        border: 0;
+      }
+    .grid-stack-item-content {
+        background-color: white;
+        text-align: center;
+      }
+    #blue{
+        background: #0000ff;
+      }
+    </style>
+</head>
+<body>
+
+  <div class="grid-stack" id="simple-grid"></div>
+  <script src="~/lib/jquery/dist/jquery.min.js"></script>
+  <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/handlebars@latest/dist/handlebars.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="~/js/gridstack-jq.js" ></script>
+  <script type="text/javascript">
+    var simple = [
+      {x: 0, y: 0, w: 4, h: 2, noMove: true, noResize: true, locked: true, id:'logo', bgcolor:'#9c4274',content: '<img src="widgets/logo/logo.png" alt="logo RedMetrix" style="width:100%;margin-top: auto;"> <h2 style="color:white;"><strong> -- A RedisTimeSeries Project </strong> </h2>'},
+      {x: 4, y: 0, w: 4, h: 6, noMove: true, noResize: true, locked: true, id:'pageperf', bgcolor:'#e83e8c',content: '<h5 style="color:whitesmoke">Page Performance <br/> (in ms) </h5> <div><h6 style="color:white">Home </h6><p/><canvas id ="wpageperfh"></canvas> </div><p/><div><h6 style="color:white">Product </h6></p><canvas id ="wpageperfp"></canvas> </div>'},
+      {x: 8, y: 0, w: 2, h: 2,noMove: true, noResize: true, locked: true, id:'pageviews', bgcolor:'#12b0c5', content: '<div id ="wpageviews" style="width: 100%; height: 100%"></div>'},
+      {x: 10, y: 0, w: 2, h: 2,noMove: true, noResize: true, locked: true, id:'totalorders', bgcolor:'#ff9618', content: '<div id ="wtotalorders" style="width: 100%; height: 100%"></div>'},
+      {x: 0, y: 2, w: 4, h: 4, noMove: true, noResize: true, locked: true, id:'conversions', bgcolor:'#ec663c', content: '<h5 style="color:whitesmoke">Conversions </h5> <div><canvas id ="wconversions"></canvas> </div></p></p> <h5 style="color:whitesmoke">Conversion Rate </h5><div id="wconversionrate" style="font-size: 400%; color:lightgreen;"></div>'},
+      {x: 8, y: 2, w: 4, h: 1,noMove: true, noResize: true, locked: true, id:'ordervalue', bgcolor:'#dc5945', content: '<div id ="wordervalue" style="width: 100%; height: 100%"></div>'},
+      {x: 8, y: 3, w: 4, h: 3,noMove: true, noResize: true, locked: true, id:'ordbypaymeth', bgcolor:'#47bbb3', content: '<h5 style="color:whitesmoke">Orders By Payment Method </h5> <div><canvas id ="wordbypaymeth"></canvas> </div>'}
+    ];
+
+    var simpleGrid = GridStack.init({
+      
+    }, '#simple-grid');
+    simpleGrid.on('added', function(e, items) {
+      items.forEach(function(item) { 
+        item.el.firstElementChild.style.backgroundColor=item.bgcolor;
+      });
+    });
+    simpleGrid.load(simple);
+  </script>
+
+  <script>
+  Handlebars.registerHelper('isdefined', function (value) {
+    return value !== undefined;
+    });
+  Handlebars.registerHelper('isnumber', function (value) {
+    return !isNaN(value);
+    });
+  Handlebars.registerHelper('showchange', function (value) {
+    return value !== undefined || !isNaN(value) || value !==0;
+    });
+  
+  </script>
+  <script id="pageview_template" type="text/x-handlebars-template">
+    <div class="entry">
+      <h5 style="color:whitesmoke">{{pageview.title}}</h5>
+      <div class="pageview" style="width: 100%; height: 83%">
+        <div class= "views" style="font-size: 400%; color:#ff9618;">{{pageview.views}}</div>
+        <div class= "views"><h5 style="color:#ff9618">Last value : {{pageview.last}}</h5></div>
+        <div class="change" style="color:white"><h3>{{#if (showchange pageview.diff)}} <span>({{pageview.change}}) {{pageview.diff}}%</span>{{/if}} </h3></div>
+      </div>
+    </div>
+  </script>
+  <script id="totalorders_template" type="text/x-handlebars-template">
+    <div class="entry">
+      <h5 style="color:whitesmoke">{{totalorders.title}}</h5>
+      <div class="pageview" style="width: 100%; height: 83%">
+        <div class= "views" style="font-size: 500%; color:#12b0c5">{{totalorders.orders}}</div>
+      </div>
+    </div>
+  </script>
+  <script id="totalsales_template" type="text/x-handlebars-template">
+    <div class="entry">
+      <h5 style="color:whitesmoke">{{totalordervalue.title}}</h5>
+      <div class="pageview" style="width: 100%; height: 83%">
+        <div class= "views"><h1 style="color:#ff9618";  font-size: 250%;>&#8377; {{totalordervalue.orderValue}}</h1></div>
+      </div>
+    </div>
+  </script>
+  <script>
+  var pageview_source = document.getElementById("pageview_template").innerHTML;
+  var pageviewTemplate = Handlebars.compile(pageview_source);
+  var totalorders_source = document.getElementById("totalorders_template").innerHTML;
+  var totalordersTemplate = Handlebars.compile(totalorders_source);
+  var totalsales_source = document.getElementById("totalsales_template").innerHTML;
+  var totalsalesTemplate = Handlebars.compile(totalsales_source);
+  </script> 
+  <script>
+    function percentage(n, total) {
+    return Math.round(n * 100 / total);
+  }
+  function shortnumber(num) {
+    if (isNaN(num)) {
+      return num;
+    }
+    if (num >= 1000000000) {
+      return (num / 1000000000).toFixed(1) + 'B';
+    } else if (num >= 1000000) {
+      return (num / 1000000).toFixed(1) + 'M';
+    } else if (num >= 1000) {
+      return (num / 1000).toFixed(1) + 'K';
+    } else {
+      return num;
+    }
+  };
+  var orderbypaychartdata= {
+    labels: [],
+    datasets: [{
+      label: 'Orders',
+      data: [],
+      borderColor: 'rgb(255, 99, 132)',
+      backgroundColor: 'rgb(255, 99, 132)',
+      borderWidth: 2,
+      borderRadius: 5,
+      borderSkipped: false,
+      order: 1
+    }]
+   };
+var orderbypaychartconfig = {
+    type: 'bar',
+    data: orderbypaychartdata,
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+            display: false,
+        }
+      }
+    }
+  };
+
+var orderbypayChart = new Chart(
+  document.getElementById('wordbypaymeth'),
+  orderbypaychartconfig
+);
+
+const pageperfhomechartdata = {
+  labels: [],
+  datasets: [
+    {
+      label: 'Max-Min',
+      data: [],
+      borderColor: 'rgb(54, 162, 235)',
+      backgroundColor: 'rgb(54, 162, 235)',
+      borderWidth: 2,
+      borderRadius: 5,
+      borderSkipped: false,
+      order: 1
+    },
+    {
+      label: 'Avg',
+      data: [],
+      borderColor: 'rgb(255, 205, 86)',
+      backgroundColor: 'rgb(255, 205, 86)',
+      type: 'line',
+      order: 0
+    }]
+};
+
+const pageperfhomechartconfig = {
+  type: 'bar',
+  data: pageperfhomechartdata,
+  options: {
+    responsive: true,
+    plugins: {
+      legend: {
+        display: false,
+      },
+      title: {
+        display: false,
+        text: 'Home Page Performance'
+      }
+    }
+  }
+};
+
+var pageperfhomeChart = new Chart(
+  document.getElementById('wpageperfh'),
+  pageperfhomechartconfig
+);
+
+const pageperfproductchartdata = {
+  labels: [],
+  datasets: [
+    {
+      label: 'Max-Min',
+      data: [],
+      borderColor: 'rgb(255, 205, 86)',
+      backgroundColor: 'lightgreen',
+      borderWidth: 2,
+      borderRadius: 5,
+      borderSkipped: false,
+      order: 1
+    },
+    {
+      label: 'Avg',
+      data: [],
+      borderColor: 'rgb(54, 162, 235)',
+      backgroundColor: 'rgb(54, 162, 235)',
+      type: 'line',
+      order: 0
+    }]
+};
+
+const pageperfproductchartconfig = {
+  type: 'bar',
+  data: pageperfproductchartdata,
+  options: {
+    responsive: true,
+    plugins: {
+      legend: {
+        display: false,
+      },
+      title: {
+        display: false,
+        text: 'Product Page Performance'
+      }
+    }
+  }
+};
+
+var pageperfproductChart = new Chart(
+  document.getElementById('wpageperfp'),
+  pageperfproductchartconfig
+);
+
+var conversionchartdata= {
+  axis: 'y',
+  labels: [],
+  datasets: [{
+    label: 'Value',
+    data: [],
+    borderColor: 'rgb(54, 162, 235)',
+    backgroundColor: 'rgb(54, 162, 235)',
+    borderWidth: 2,
+    borderRadius: 5,
+    borderSkipped: false,
+    order: 1
+  }]
+ };
+var conversionchartconfig = {
+  type: 'bar',
+  data: conversionchartdata,
+  options: {
+    indexAxis: 'y',
+    responsive: true,
+    plugins: {
+      legend: {
+          display: false,
+      }
+    }
+  }
+};
+
+var conversionChart = new Chart(
+document.getElementById('wconversions'),
+conversionchartconfig
+);
+  $(document).ready(function () {
+  var chartData = @Html.Raw(Json.Serialize(Model.chartdata));
+  console.log(chartData);
+  var pageviews=0;
+  var lastpv=0;
+  var pageviewdiff=0;
+  var pageviewchange="";
+  var totalorders=0;
+  var totalsales=0;
+      if (!isNaN(chartData.pageViews.pv)){
+            pageviews=chartData.pageViews.pv;
+            if (!isNaN(chartData.pageViews.prev_pv)){
+              lastpv=chartData.pageViews.prev_pv;
+                var diff=0;
+                if(chartData.pageViews.prev_pv>chartData.pageViews.pv){
+                    diff=chartData.pageViews.prev_pv-chartData.pageViews.pv;
+                    pageviewchange="-"
+                }else{
+                    diff=chartData.pageViews.pv-chartData.pageViews.prev_pv;
+                    pageviewchange="+";
+                }
+                pageviewdiff=percentage(diff,pageviews);
+               
+              }
+          }
+        if (!isNaN(chartData.orders)){
+          totalorders =chartData.orders
+        }
+        if (!isNaN(chartData.orderValue)){
+          totalsales =chartData.orderValue
+        }        
+        var context={
+            pageview: {
+            title:"Page Views",  
+            views: shortnumber(pageviews),
+            last:shortnumber(lastpv),
+            change: pageviewchange,
+            diff:pageviewdiff
+            },
+            totalorders: {
+            title:"Transactions",  
+            orders: shortnumber(totalorders)
+            },
+            totalordervalue: {
+            title:"Total Sales",  
+            orderValue: shortnumber(totalsales)
+            },
+        };
+        document.getElementById("wpageviews").innerHTML = pageviewTemplate(context);
+        document.getElementById("wtotalorders").innerHTML =totalordersTemplate(context);
+        document.getElementById("wordervalue").innerHTML=totalsalesTemplate(context);
+        const updatedorderbypaychart = Chart.getChart("wordbypaymeth");
+        updatedorderbypaychart.data.labels=chartData.ordersByPaymentMethod.map((item) =>item.paymentMethod);
+        updatedorderbypaychart.data.datasets[0].data=chartData.ordersByPaymentMethod.map((item)=>item.orders);
+        updatedorderbypaychart.update();
+        
+        const updatedpageperfhomechart = Chart.getChart("wpageperfh");
+        updatedpageperfhomechart.data.labels=chartData.pagePerformanceHome.time;
+        updatedpageperfhomechart.data.datasets[0].data=chartData.pagePerformanceHome.maxmin;
+        updatedpageperfhomechart.data.datasets[1].data=chartData.pagePerformanceHome.avg;
+        updatedpageperfhomechart.update();
+
+        const updatedpageperfproductchart = Chart.getChart("wpageperfp");
+        updatedpageperfproductchart.data.labels=chartData.pagePerformanceProduct.time;
+        updatedpageperfproductchart.data.datasets[0].data=chartData.pagePerformanceProduct.maxmin;
+        updatedpageperfproductchart.data.datasets[1].data=chartData.pagePerformanceProduct.avg;
+        updatedpageperfproductchart.update();
+
+        var funneldata =chartData.conversions.funnelItems.sort(function (a, b) {
+          return a.order - b.order;
+        });
+        var funneldataVal=funneldata.map((item)=>item.value);
+        const updatedconversionschart = Chart.getChart("wconversions");
+        updatedconversionschart.data.labels=funneldata.map((item) =>item.item);
+        updatedconversionschart.data.datasets[0].data=funneldata.map((item)=>item.value);
+        updatedconversionschart.update();
+        document.getElementById("wconversionrate").innerHTML = percentage(funneldataVal[funneldataVal.length-1],funneldataVal[0]) + "%";
+  });      
+    
+  </script>  
+</body>
+</html>
